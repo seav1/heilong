@@ -13,7 +13,6 @@ on:
 
 jobs:
   build:
-    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-22.04
 
     permissions:
@@ -23,24 +22,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       
-      # 1. 既然都在 Docker 里跑，其实连 pnpm 都不需要在外面装
-      # 但为了保险起见保留 setup，只是去掉了 cache
+      # 修复点1：保留 setup 但去掉了 cache 配置，避免路径报错
       - uses: pnpm/action-setup@v4
         with:
           version: "8.3.1"
+      - uses: actions/setup-node@v6
       
-      # 2. 这里去掉了 with: cache: "pnpm"
-      - uses: actions/setup-node@v6 
-        # with:          <-- 这两行删掉
-        #   cache: "pnpm" <-- 这一行导致了报错
-
-      - name: Read version from version.yaml
-        id: version
-        run: |
-          VERSION=$(grep '^version:' version.yaml | awk '{print $2}')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
-
       - name: Setup timezone
         uses: szenius/set-timezone@v2.0
         with:
@@ -61,11 +48,9 @@ jobs:
             ghcr.io/${{ github.repository }}
           flavor: |
             latest=false
+          # 修改点2：这里只保留 latest 一个 Tag
           tags: |
-            type=ref,event=branch,enable=${{ github.ref == format('refs/heads/{0}', 'develop') }}
-            type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'master') }}
-            type=raw,value=${{ steps.version.outputs.version }},enable=${{ github.ref == format('refs/heads/{0}', 'master') }}
-            type=semver,pattern={{version}}
+            type=raw,value=latest
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -86,7 +71,9 @@ jobs:
           context: .
           file: ./docker/Dockerfile
           push: true
+          provenance: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:cache
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:cache,mode=max
+          # 修改点3：缓存改名为 buildcache，解决之前的 unknown type 报错
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:buildcache,mode=max
