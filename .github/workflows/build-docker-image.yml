@@ -17,7 +17,6 @@ jobs:
     if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-22.04
 
-    # 必须开启 write 权限才能推送到 GHCR
     permissions:
       packages: write
       contents: read
@@ -87,65 +86,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:cache
           cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:cache,mode=max
-
-  build310:
-    # 只有 master 分支才构建 python3.10 版本
-    if: ${{ github.ref_name == 'master' }}
-    runs-on: ubuntu-22.04
-
-    permissions:
-      packages: write
-      contents: read
-
-    steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v4
-        with:
-          version: "8.3.1"
-      - uses: actions/setup-node@v6
-        with:
-          cache: "pnpm"
-
-      - name: Read version from version.yaml
-        id: version
-        run: |
-          VERSION=$(grep '^version:' version.yaml | awk '{print $2}')
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
-
-      - name: Setup timezone
-        uses: szenius/set-timezone@v2.0
-        with:
-          timezoneLinux: Asia/Shanghai
-
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push python3.10
-        id: docker_build_310
-        uses: docker/build-push-action@v6
-        with:
-          build-args: |
-            MAINTAINER=${{ github.repository_owner }}
-            QL_BRANCH=${{ github.ref_name }}
-            SOURCE_COMMIT=${{ github.sha }}
-          network: host
-          platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64,linux/ppc64le,linux/386
-          context: .
-          file: ./docker/310.Dockerfile
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:python3.10
-            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}-python3.10
-          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:cache-python3.10
-          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:cache-python3.10,mode=max
