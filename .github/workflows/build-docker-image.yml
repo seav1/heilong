@@ -115,6 +115,7 @@ jobs:
 
     runs-on: ubuntu-22.04
 
+    # 必须开启 write 权限才能推送到 GHCR
     permissions:
       packages: write
       contents: read
@@ -140,12 +141,7 @@ jobs:
         with:
           timezoneLinux: Asia/Shanghai
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
+      # 删除了 DockerHub 登录，仅保留 GHCR 登录
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -157,8 +153,8 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
+          # 修改为只输出 GHCR 地址
           images: |
-            ${{ github.repository }}
             ghcr.io/${{ github.repository }}
           flavor: |
             latest=false
@@ -183,15 +179,15 @@ jobs:
             QL_BRANCH=${{ github.ref_name }}
             SOURCE_COMMIT=${{ github.sha }}
           network: host
-          # linux/s390x npm 暂不可用
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64,linux/ppc64le,linux/386
           context: .
           file: ./docker/Dockerfile
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=whyour/qinglong:cache
-          cache-to: type=registry,ref=whyour/qinglong:cache,mode=max
+          # 缓存也改为 GHCR
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:cache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:cache,mode=max
 
       - name: Image digest
         run: |
@@ -228,12 +224,7 @@ jobs:
         with:
           timezoneLinux: Asia/Shanghai
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
+      # 删除了 DockerHub 登录，仅保留 GHCR 登录
       - name: Login to GHCR
         uses: docker/login-action@v3
         with:
@@ -256,16 +247,17 @@ jobs:
             QL_BRANCH=${{ github.ref_name }}
             SOURCE_COMMIT=${{ github.sha }}
           network: host
-          # linux/s390x npm 暂不可用
           platforms: linux/amd64,linux/arm/v6,linux/arm/v7,linux/arm64,linux/ppc64le,linux/386
           context: .
           file: ./docker/310.Dockerfile
           push: true
+          # 所有的 Tag 都修改为了 ghcr.io 前缀
           tags: |
-            whyour/qinglong:python3.10
-            whyour/qinglong:${{ steps.version.outputs.version }}-python3.10
-          cache-from: type=registry,ref=whyour/qinglong:cache-python3.10
-          cache-to: type=registry,ref=whyour/qinglong:cache-python3.10,mode=max
+            ghcr.io/${{ github.repository }}:python3.10
+            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}-python3.10
+          # 缓存改为 GHCR
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository }}:cache-python3.10
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository }}:cache-python3.10,mode=max
 
       - name: Image digest
         run: |
